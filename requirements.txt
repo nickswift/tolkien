@@ -1,1 +1,2 @@
 django-cors-headers=0.12
+python-bcrypt=0.3.2
