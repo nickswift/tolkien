@@ -40,18 +40,13 @@ def create_user(request):
     salt = bcrypt.gensalt(12)
     pw_digest = bcrypt.hashpw(password, salt)
 
-    # Create a metadata fingerprint
-    user_meta = AuthMeta.objects.create()
-
     # Create a user
     user = AuthUser.objects.create(
         username=rqdata['username'],
-        passwd_digest=pw_digest,
-        metadata=user_meta
+        passwd_digest=pw_digest
     )
     retdata = {
-        'user': serializers.serialize('json', user),
-        'meta': serializers.serialize('json', user_meta)
+        'user': serializers.serialize('json', user)
     }
     return HttpResponse(json.dumps(retdata))
 
