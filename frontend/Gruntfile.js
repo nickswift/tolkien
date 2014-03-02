@@ -16,6 +16,12 @@ module.exports = function(grunt){
     });
 
     grunt.registerTask('default', [
-        'jshint'
+        'jshint',
+        'useminPrepare',
+        'concat',
+        'uglify',
+        'cssmin',
+        'copy',
+        'usemin'
     ]);
 };
