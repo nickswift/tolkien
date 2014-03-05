@@ -54,13 +54,19 @@ WSGI_APPLICATION = 'tolkien.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/1.6/ref/settings/#databases
 
+'''
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgres'
+        'ENGINE'   : 'django.db.backends.postgresql_psycopg2',
+        'NAME'     : 'tolkien_db',
+        'USER'     : 'deploy',
+        'PASSWORD' : 'realpasswordhere',
+        'HOST'     : 'localhost',
+        'PORT'     : '5432'
     }
 }
-
 '''
+
 # TODO: get postgres working and remove this
 DATABASES = {
     'default': {
@@ -68,7 +74,7 @@ DATABASES = {
         'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
     }
 }
-'''
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.6/topics/i18n/
