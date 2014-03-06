@@ -41,7 +41,7 @@ def list_users(request):
 
 # Create a user
 def create_user(request):
-    rqdata = json.loads(request.read())
+    rqdata = json.loads(request.raw_post_data)
 
     atmpt_username = rqdata['username']
     atmpt_password = rqdata['password']
@@ -71,7 +71,7 @@ def create_user(request):
 
 # Authenticate a user
 def auth_user(request):
-    rqdata = json.loads(request.read())
+    rqdata = json.loads(request.raw_post_data)
 
     atmpt_username = rqdata['username']
     atmpt_password = rqdata['password']
@@ -139,7 +139,7 @@ def auth_user(request):
             }))
 
 def logout(request):
-    rqdata = json.loads(request.read())
+    rqdata = json.loads(request.raw_post_data)
 
     # validate the user's session token before we do anything else
     atmpt_stoken = rqdata['stoken']
