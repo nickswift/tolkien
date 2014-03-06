@@ -19,8 +19,8 @@ BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 SECRET_KEY = 'y+e)b(vmxf8vx&#8@_aso(z4u_y%88nn#_8w=(ryb3nzp(hsnd'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
-TEMPLATE_DEBUG = False
+DEBUG = True
+TEMPLATE_DEBUG = True
 
 ALLOWED_HOSTS = [
     'localhost',
@@ -57,25 +57,12 @@ WSGI_APPLICATION = 'tolkien.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/1.6/ref/settings/#databases
-
-'''
 DATABASES = {
     'default': {
-        'ENGINE'   : 'django.db.backends.postgresql_psycopg2',
-        'NAME'     : 'tolkien_db',
-        'USER'     : 'deploy',
-        'PASSWORD' : 'realpasswordhere',
-        'HOST'     : 'localhost',
-        'PORT'     : '5432'
-    }
-}
-'''
-
-# TODO: get postgres working and remove this
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME'  : 'tolkien_db',
+        'USER'  : 'deploy',
+        'HOST'  : 'localhost'
     }
 }
 
