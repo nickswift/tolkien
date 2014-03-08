@@ -7,10 +7,8 @@ class AuthUser(models.Model):
 
 # User authentication metadata fingerprint
 class UserMeta(models.Model):
-    owner          = models.ForeignKey(AuthUser)
-    avg_attempts   = models.IntegerField(default=0)
-    avg_keystrokes = models.IntegerField(default=0)
-    avg_backspaces = models.IntegerField(default=0)
+    owner  = models.ForeignKey(AuthUser)
+    values = models.TextField()
 
 # Login session -- making this bare-bones, because it's not the focus of the
 # project

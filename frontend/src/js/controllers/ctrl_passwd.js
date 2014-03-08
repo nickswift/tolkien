@@ -2,114 +2,115 @@
  * Password collection page controller
  */
 angular.module('tolkienControllers', [])
-    .controller('PasswdCtrl', ['$scope', '$http', function($scope, $http){
-        // API connection and login values
-        var api_url     = 'http://107.170.228.214/api',
-            api_headers = null,
-            csrf        = null,
-            stoken      = null;
+    .controller('PasswdCtrl', ['$scope', '$http', 'tolkienAPI',
+        function($scope, $http, tolkienAPI){
 
-        // Metadata collection values
-        $scope.dt_last_keystroke     = 0;
-        $scope.md_keystroke_times    = [];
-        $scope.md_keystroke_time_sum = 0;
-        $scope.md_backspaces         = 0;
-
-        // Start by requesting a csrf token
-        $http.get(api_url + '/auth/csrf')
-            .success(function(data){
-                console.log('csrf', data);
-                csrf        = data;
-                api_headers = {
-                    'X-CSRFToken' : data,
-                    'Content-Type': 'application/json'
+            // Non-scope values
+            var csrf = {
+                    exists : false,
+                    token  : null
+                },
+                metadata = {
+                    ks_prev     : 0,
+                    ks_times    : [],
+                    ks_total    : 0,
+                    prev_length : 0
                 };
-            });
 
-        // Sign a user up for the service 
-        // TODO: Prune users on a set interval
-        $scope.signup = function(){
-            if(!csrf){ return; }
-
-            $http({
-                method: 'POST',
-                url   : api_url + '/auth/user/create',
-                data  : {
-                    'username': $scope.username,
-                    'password': $scope.password
-                },
-                headers: api_headers
-            })
-            .success(function(data){
-                console.log('Signed up');
-            });
-        };
-
-        // Log the user in
-        // TODO: supply Metadata
-        $scope.login = function(){
-            if(!csrf){ return; }
-
-            $http({
-                method: 'POST',
-                url   : api_url + '/auth/user/login',
-                data  : {
-                    'username': $scope.username,
-                    'password': $scope.password
-                },
-                headers: api_headers
-            })
-            .success(function(data){
-                // Set the session token
-                stoken = data.stoken;
-                logout();
-            });
-        };
-
-        // on password keypress, start/continue the metadata collection process
-        $scope.collect_md = function(e){
-            // TODO: collect backspaces, and quit if that's the case
-            console.log(e);
-
-            // If this is the first keystroke, just set up the system to get the
-            // next one.
-            if(!$scope.dt_last_keystroke){
-                $scope.dt_last_keystroke = new Date().getTime();
-                return;
-            }
-            // record time since last keystroke
-            var now = new Date().getTime();
-            $scope.md_keystroke_times.push({
-                time: now-$scope.dt_last_keystroke
-            });
-
-            // summate keystroke times
-            $scope.md_keystroke_time_sum = 0;
-            for(var i=0;i<$scope.md_keystroke_times.length;i++){
-                $scope.md_keystroke_time_sum += $scope.md_keystroke_times[i].time;
+            // Rotate the csrf token on the server, and grab the new one
+            // from that server
+            function attain_csrf(){
+                csrf.exists = false;
+                tolkienAPI.get_csrf()
+                    .success(function(token){
+                        csrf.exists = true;
+                        csrf.token  = token;
+                        console.log(csrf);
+                    });
             }
 
-            // console.log($scope.md_keystroke_times, $scope.md_keystroke_time_sum);
+            // Scope values
+            _.assign($scope, {
+                username       : null,
+                password       : null,
+                hiw_visible    : false,
+                metadata       : null,
+                successful_pws : [],
+                failed_pws     : [],
 
-            // Set up the next keystroke
-            $scope.dt_last_keystroke = now;
-        };
-
-        // Use session token to log the user out -- this gets called 
-        // automatically, since there's nothing this service actually does
-        function logout(){
-            if(!stoken){ return; }
-            $http({
-                method: 'POST',
-                url   : api_url + '/auth/user/logout',
-                data  : {
-                    'stoken': stoken
+                reset_password: function(){
+                    $scope.password = null;
+                    metadata = {
+                        ks_prev     : 0,
+                        ks_times    : [],
+                        ks_total    : 0,
+                        prev_length : 0
+                    };
                 },
-                headers: api_headers
-            })
-            .success(function(data){
-                console.log('Success! ', data);
-                stoken = null;
+                signup: function(){
+                    if(!csrf.exists){ return; }
+                },
+                login: function(){
+                    if(!csrf.exists){ return; }
+                    console.log('logging in');
+                    tolkienAPI.login($scope.username, $scope.password)
+                        .success(function(data){
+                            console.log('login success!', 'logging out...');
+                            $scope.successful_pws.push(metadata);
+                            $scope.reset_password();
+                            $scope.logout(data.stoken);
+                        })
+                        .error(function(data){
+                            $scope.reset_password();
+                            $scope.failed_pws.push(metadata);
+                        });
+                },
+                logout: function(stoken){
+                    if(!csrf.exists){ return; }
+                    tolkienAPI.logout(stoken)
+                        .success(function(){
+                            attain_csrf();
+                        });
+                },
+                toggle_hiw_visible: function(){
+                    $scope.hiw_visible = !$scope.hiw_visible;
+                }
             });
-        }
-    }]);
+
+            // Password watcher
+            $scope.$watch('password', function(){
+                var now = new Date().getTime();
+                // Update password metadata
+                if(!$scope.password){ return; }
+                // Kill password on backspace
+                if($scope.password.length < metadata.prev_length){
+                    $scope.reset_password();
+                    return;
+                }
+                // if this is the first letter, get process started
+                if(!metadata.ks_prev){
+                    metadata.ks_prev = new Date().getTime();
+                    return;
+                }
+                metadata.ks_times.push({
+                    time: now - metadata.ks_prev
+                });
+                metadata.ks_total = 0;
+                for(var i=0;i<metadata.ks_times.length;i++){
+                    metadata.ks_total += metadata.ks_times[i].time;
+                }
+                // setup next keystroke
+                metadata.ks_prev     = now;
+                metadata.prev_length = $scope.password.length;
+
+                // Keep scope metadata current
+                $scope.metadata = metadata;
+
+                console.log(metadata);
+            });
+        
+            // request CSRF after the view is done loading
+            $scope.$on('$viewContentLoaded', function(){
+                attain_csrf();
+            });
+        }]);

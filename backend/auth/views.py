@@ -6,6 +6,7 @@ from django.core import serializers
 from auth.models import AuthUser, UserMeta, UserSession
 from datetime import datetime as dt 
 from datetime import timedelta
+from utils import sanitize_passwd_meta
 
 # This depends on bcrypt. Install it with pip
 import bcrypt, json, random, string
@@ -19,6 +20,9 @@ functionality
 # A request to /auth/csrf should reset the csrf token, and then return that 
 # token. Ideally, this should all be happening over SSL
 def get_csrf(request):
+    if request.method != 'GET':
+        return HttpResponse(status=405)
+
     rotate_token(request)
     c = {}
     c.update(csrf(request))
@@ -30,6 +34,9 @@ def get_csrf(request):
 
 # List users
 def list_users(request):
+    if request.method != 'GET':
+        return HttpResponse(status=405)
+
     data = [
         {
             'pk': user['pk'],
@@ -41,6 +48,9 @@ def list_users(request):
 
 # Create a user
 def create_user(request):
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
     rqdata = json.loads(request.read())
 
     atmpt_username = rqdata['username']
@@ -71,6 +81,9 @@ def create_user(request):
 
 # Authenticate a user
 def auth_user(request):
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
     rqdata = json.loads(request.read())
 
     atmpt_username = rqdata['username']
@@ -104,6 +117,17 @@ def auth_user(request):
             # This is where we can log the origin of the request, and screen 
             # it out if it's trying to login too frequently
             return HttpResponse(status=403)
+
+        # Last line of defense -- check the user's metedata fingerprint
+        fingerprint = sanitize_passwd_meta(rqdata['metadata'])
+
+        if fingerprint is None:
+            # User passed in something nasty
+            return HttpResponse(status=403)
+
+        # Analyze the fingerprint
+        
+
         # Create session
         token_found = False
 
@@ -139,6 +163,9 @@ def auth_user(request):
             }))
 
 def logout(request):
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+        
     rqdata = json.loads(request.read())
 
     # validate the user's session token before we do anything else
