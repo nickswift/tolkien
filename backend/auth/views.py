@@ -119,12 +119,13 @@ def auth_user(request):
             return HttpResponse(status=403)
 
         # Last line of defense -- check the user's metedata fingerprint
+        '''
         fingerprint = sanitize_passwd_meta(rqdata['metadata'])
-
         if fingerprint is None:
             # User passed in something nasty
             return HttpResponse(status=403)
-
+        '''
+        
         # Analyze the fingerprint
         
 

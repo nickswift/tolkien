@@ -2,8 +2,9 @@
  * Tolkien API connection Service
  */
 angular.module('tolkienServices', [])
-    .factory('tolkienAPI', ['$http', function($http){
-            var api_url = 'http://107.170.228.214/api';
+    .factory('tolkienAPI', ['$http', '$cookies', function($http, $cookies){
+            var api_url = '/api';
+
             return {
                 // Ask the server to rotate the CSRF token
                 // and store it in the csrf cookie
@@ -13,14 +14,33 @@ angular.module('tolkienServices', [])
                         url   : api_url + '/auth/csrf'
                     });
                 },
+
+                // sign up
+                signup: function(csrf, username, password){
+                    return $http({
+                        method : 'POST',
+                        url    : api_url + '/auth/user/create',
+                        data   : {
+                            'username' : username,
+                            'password' : password
+                        },
+                        headers: {
+                            'X-CSRFToken'  : csrf,
+                            'Content-Type' : 'application/json'
+                        }
+                    });
+                },
+
                 // login and logout requests
                 login: function(csrf, username, password){
+
+                    console.log('connecting with ', csrf);
                     return $http({
                         method: 'POST',
                         url   : api_url + '/auth/user/login',
                         data  : {
-                            'username':username,
-                            'password':password
+                            'username' : username,
+                            'password' : password
                         },
                         headers: {
                             'X-CSRFToken'  : csrf,

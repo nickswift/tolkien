@@ -6,12 +6,12 @@ module.exports = {
         expand: true,
         cwd   : 'src/',
         src   : '**/*.html',
-        dest  : 'build/'
+        dest  : 'build'
     },
     img: {
         expand: true,
         cwd   : 'src/',
         src   : 'res/img/**/*',
-        dest  : 'build/'
+        dest  : 'build'
     }
 };

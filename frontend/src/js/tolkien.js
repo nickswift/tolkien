@@ -4,6 +4,7 @@
  */
 angular.module('tolkienApp', [
         'ngRoute',
+        'ngCookies',
         'tolkienControllers',
         'tolkienServices'
     ])

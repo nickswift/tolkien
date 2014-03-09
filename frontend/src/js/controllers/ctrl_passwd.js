@@ -49,11 +49,18 @@ angular.module('tolkienControllers', [])
                 },
                 signup: function(){
                     if(!csrf.exists){ return; }
+
+                    tolkienAPI
+                        .signup(csrf.token, $scope.username, $scope.password)
+                        .success(function(data){
+                            console.log('signed up');
+                        });
                 },
                 login: function(){
                     if(!csrf.exists){ return; }
-                    console.log('logging in');
-                    tolkienAPI.login($scope.username, $scope.password)
+                    
+                    tolkienAPI
+                        .login(csrf.token, $scope.username, $scope.password)
                         .success(function(data){
                             console.log('login success!', 'logging out...');
                             $scope.successful_pws.push(metadata);
@@ -67,7 +74,7 @@ angular.module('tolkienControllers', [])
                 },
                 logout: function(stoken){
                     if(!csrf.exists){ return; }
-                    tolkienAPI.logout(stoken)
+                    tolkienAPI.logout(csrf.token, stoken)
                         .success(function(){
                             attain_csrf();
                         });

@@ -59,10 +59,11 @@ WSGI_APPLICATION = 'tolkien.wsgi.application'
 # https://docs.djangoproject.com/en/1.6/ref/settings/#databases
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME'  : 'tolkien_db',
-        'USER'  : 'deploy',
-        'HOST'  : 'localhost'
+        'ENGINE'   : 'django.db.backends.mysql',
+        'NAME'     : 'tolkien_db',
+        'USER'     : 'deploy',
+        'PASSWORD' : 'w5wyh9T73BTQwaHc',
+        'HOST'     : 'localhost'
     }
 }
 
