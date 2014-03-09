@@ -6,7 +6,7 @@ from django.core import serializers
 from auth.models import AuthUser, UserMeta, UserSession
 from datetime import datetime as dt 
 from datetime import timedelta
-from utils import sanitize_passwd_meta
+from utils import sanitize_passwd_meta, validate_meta_fingerprint
 
 # This depends on bcrypt. Install it with pip
 import bcrypt, json, random, string
@@ -119,15 +119,23 @@ def auth_user(request):
             return HttpResponse(status=403)
 
         # Last line of defense -- check the user's metedata fingerprint
-        '''
-        fingerprint = sanitize_passwd_meta(rqdata['metadata'])
-        if fingerprint is None:
+        incoming_meta = sanitize_passwd_meta(rqdata['metadata'])
+        if incoming_meta is None:
             # User passed in something nasty
             return HttpResponse(status=403)
-        '''
         
         # Analyze the fingerprint
-        
+        extant_fingerprints = UserMeta.objects.find(owner=user)
+
+        # Need to gather a sufficient sample size for this data to be meaningful
+        if len(extant_fingerprints) > 10:
+            # Validate the user's metadata
+            validate_meta_fingerprint(incoming_meta, extant_fingerprints)
+
+        new_fingerprint = UserMeta.objects.create(
+            owner=user,
+            values=incoming_meta
+        )
 
         # Create session
         token_found = False
@@ -151,14 +159,13 @@ def auth_user(request):
                 session_token=stoken,
                 expiry=dt.now() + timedelta(hours=3)
             )
-
             # There should be more to it than this, but there's nothing the
             # user's going to be doing here -- so just keep it in mind that
             # you should be updating the expiration time as the user is 
             # active. This thing should only expire when the user forgets to 
             # log out
+            new_fingerprint.save()
             session.save()
-
             return HttpResponse(json.dumps({
                 'stoken': stoken
             }))
