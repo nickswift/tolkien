@@ -1,50 +1,43 @@
-'''
-Authentication utils
-'''
-from numpy import matrix
-import numbers, json, math
 
-# Sanitize metadata string -- this should be input as a JSON string
-def sanitize_passwd_meta(meta):
-    # load json string
-    data = json.loads(meta)
-    retval = [
-            item 
-        if isinstance(item, numbers.Number)
-        else
-            None
-        for index, item in enumerate(data)
-    ]
-    # Screen out non-numeric input
-    if None in retval:
-        return None
-    else:
-        return retval
+from itertools import izip
+import math
 
-def validate_meta_fingerprint(fp, extant_fps):
-    col_failures = 0
-    tmp_fp = fp[:] 
+# Exponential Weighted Moving Average (alpha pegged to 
+# 50% by default)
+def EWMA(current, new, alpha=0.5):
+	assert alpha > 0 and alpha < 1, \
+		"EWMA: alpha not in between 0 and 1"
 
-    # Load extant_fps into matrix M -- transpose
-    m_transpose = matrix(extant_fps).transpose()
-    # Calculate the standard deviation of each row
-    for item in m_transpose:
-        row = item.tolist()[0]
-        mean = sum(row)/len(row)
-        # Difference from mean
-        dfm = [ pow(x-mean,2) for x in row ]
+	return alpha*new + (1-alpha)
 
-        # input within ceil(2*std_dev) variation is within a statistically 
-        # acceptable threshold
-        std_dev = math.ceil(math.sqrt(sum(dfm)/float(mean)) * 2.0)
-        compare = tmp_fp[0:1][0]
-        tmp_fp = tmp_fp[1:]
+# provide padding to an AES secret that isn't the
+# correct size. (let valid secret pass through)
+def aes_secret_padding(secret, blksize=32, padding='}'):
+	if not len(secret) in (16, 24, 32):
+		return secret + (blksize - len(secret)) * padding
+	return secret
 
-        # Validate the current column of the proposed fingerprint against
-        # the standard deviation of the 
-        if compare < mean - std_dev or compare > mean + std_dev:
-            # Bad column -- add to failure rate
-            col_failures = col_failures + 1
+# Perform metadata validation -- this is the business end
+# of the password metadata authentication system
+def validate_user_metadata(meta, extant, alpha=0.5):
+	assert len(meta) != len(extant['keystrokes']), \
+		"Error: meta/extant data length mismatch"
 
-    # Ensure < 25% failure rate
-    return math.floor( col_failures/float(len(fp)) * 100 ) < 25
+	# at start, k = SIGMA[(total-median)^2]
+	new_ks = []
+	new_vartn = []
+	for i, j, k in (meta, extant['keystrokes'], extant['variance']):
+		sdev = sqrt(k/j)
+		if i > j-sdev and i < j+sdev:
+			# Add new mean and recalculate k for use in the next
+			# standard deviation calculation
+			new_ks.append(EWMA(j, i, alpha=alpha))
+			# Apply moving average rule to variation
+			new_vartn.append((1-alpha)*k + alpha*math.pow(i-j,2))
+		else:
+			return None
+
+	return {
+		'ks': new_ks,
+		'variance': new_vartn
+	}

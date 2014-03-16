@@ -1,10 +1,9 @@
-from django.conf.urls import patterns, url
+from django.conf.urls import patterns, include, url
 
-urlpatterns = patterns(
-    '',
-    url(r'csrf$'        , 'auth.views.get_csrf'),
-    url(r'user/list$'   , 'auth.views.list_users'),
-    url(r'user/create$' , 'auth.views.create_user'),
-    url(r'user/login$'  , 'auth.views.auth_user'),
-    url(r'user/logout$' , 'auth.views.logout'),
+urlpatterns = patterns('',
+    # url(r'^admin/', include(admin.site.urls)),
+    url(r'^csrf'  , 'auth.views.reset_csrf'),
+    url(r'^create', 'auth.views.user_create'),
+    url(r'^login' , 'auth.views.user_login'),
+    url(r^'logout', 'auth.views.user_logout'),
 )

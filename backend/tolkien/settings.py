@@ -12,32 +12,30 @@ https://docs.djangoproject.com/en/1.6/ref/settings/
 import os
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/1.6/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'y+e)b(vmxf8vx&#8@_aso(z4u_y%88nn#_8w=(ryb3nzp(hsnd'
+SECRET_KEY = 'a1@%$8h7=)6dzjyb($!++w7m&1w2m&s!@ib4nom9oae0o^6co!'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
+
 TEMPLATE_DEBUG = True
 
-ALLOWED_HOSTS = [
-    'localhost',
-    '107.170.228.214'
-]
+ALLOWED_HOSTS = []
 
 
 # Application definition
 
 INSTALLED_APPS = (
-    # 'django.contrib.admin',
+    'django.contrib.admin',
+    'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'corsheaders',
-    'auth',
 )
 
 MIDDLEWARE_CLASSES = (
@@ -47,7 +45,6 @@ MIDDLEWARE_CLASSES = (
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
 )
 
 ROOT_URLCONF = 'tolkien.urls'
@@ -57,16 +54,13 @@ WSGI_APPLICATION = 'tolkien.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/1.6/ref/settings/#databases
+
 DATABASES = {
     'default': {
-        'ENGINE'   : 'django.db.backends.mysql',
-        'NAME'     : 'tolkien_db',
-        'USER'     : 'deploy',
-        'PASSWORD' : 'w5wyh9T73BTQwaHc',
-        'HOST'     : 'localhost'
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
     }
 }
-
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.6/topics/i18n/
@@ -86,5 +80,3 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/1.6/howto/static-files/
 
 STATIC_URL = '/static/'
-
-CORS_ORIGIN_WHITELIST = ()

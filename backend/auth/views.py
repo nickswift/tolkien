@@ -1,190 +1,111 @@
-from django.core.context_processors import csrf
+from django.shortcuts import render
 from django.middleware.csrf import rotate_token
-from django.core.exceptions import ObjectDoesNotExist
 from django.http import HttpResponse
-from django.core import serializers
-from auth.models import AuthUser, UserMeta, UserSession
-from datetime import datetime as dt 
-from datetime import timedelta
-from utils import sanitize_passwd_meta, validate_meta_fingerprint
+from django.contrib.auth.models import User
+from django.contrib.auth import authenticate, login, logout
+from django.core.exceptions import ObjectDoesNotExist
+from Crypto.Cipher import AES
 
-# This depends on bcrypt. Install it with pip
-import bcrypt, json, random, string
+from auth.models import UserMeta
+from auth.utils import aes_secret_padding, validate_user_metadata
 
-'''
-Note: input doesn't need to be sanitized on this level, because Django's 
-model implementation provides input sanitization as part of its core 
-functionality
-'''
+import struct, zlib, json
 
-# A request to /auth/csrf should reset the csrf token, and then return that 
-# token. Ideally, this should all be happening over SSL
-def get_csrf(request):
-    if request.method != 'GET':
-        return HttpResponse(status=405)
+# Reset the CSRF token
+def reset_csrf(request):
+	rotate_token(request)
+	return HttpResponse('CSRF Token Reset', status=200)
 
-    rotate_token(request)
-    c = {}
-    c.update(csrf(request))
-    # Set cookie
-    response = HttpResponse(c['csrf_token'])
-    response.set_cookie('csrftoken', unicode(c['csrf_token']))
-    return response
+def user_create(request):
+	# Search for taken username
+	try:
+		extant = User.objects.get(username=request.POST['username'])
+		return HttpResponse(status=403)
+	except ObjectDoesNotExist:
+		pass
 
+	# Django's model class sanitizes input automatically
+	# I'd double check it, but that's not the focus of this project
+	# -- it's used in production environments, so I'm not too worried
+	username=request.POST['username']
+	password=request.POST['password']
 
-# List users
-def list_users(request):
-    if request.method != 'GET':
-        return HttpResponse(status=405)
+	# Load data into correct format for the first time
+	md_list = json.loads(request.POST['metadata'])
+	metadata = json.dumps({
+		'keystrokes': md_list
+		'variance'  : [0 for _ in md_list]
+	})
 
-    data = [
-        {
-            'pk': user['pk'],
-            'name': user['username']
-        } for user in AuthUser.objects.all().values('pk', 'username')
-    ]
-    return HttpResponse(json.dumps(data))
+	# Create the user 
+	user = User.objects.create(
+		username=username, 
+		password=password
+	)
 
+	# IMPORTANT -- Encrypt the metadata with AES using 
+	# the password as a key so that the attacker doesn't get the key length
+	md_aes = AES.new(aes_secret_padding(password), AES.MODE_CFB)
+	md_cipher = md_aes.encrypt(metadata)
+	user_md = UserMeta.objects.create(
+		owner=user,
+		data=md_cipher
+	)
+	user.save()
+	user_md.save()
+	return HttpResponse(status=200)
 
-# Create a user
-def create_user(request):
-    if request.method != 'POST':
-        return HttpResponse(status=405)
+def user_login(request):
+	username=request.POST['username']
+	password=request.POST['password']
+	metadata=request.POST['metadata']
 
-    rqdata = json.loads(request.read())
+	# authenticate the user
+	user = authenticate(username=username, password=password)
 
-    atmpt_username = rqdata['username']
-    atmpt_password = rqdata['password']
+	if user is not None and user.is_active:
+		# Authentication worked -- now for the metadata
+		try:
+			metadata = UserMeta.objects.get(owner=user)
+		except ObjectDoesNotExist:
+			# This shouldn't happen. fail
+			return HttpResponse(status=500)
 
-    try:
-        existing = AuthUser.objects.get(username=atmpt_username)
-        return HttpResponse(status=403)
-    except ObjectDoesNotExist:
-        # Run password through bcrypt
-        password = bytes(rqdata['password'])
-        salt = bcrypt.gensalt(12)
-        pw_digest = bcrypt.hashpw(password, salt)
+		md_aes = AES.new(aes_secret_padding(password), AES.MODE_CFB)
+		md_ptext = md_aes.decrypt(metadata.data)
 
-        # Create a user
-        user = AuthUser.objects.create(
-            username=rqdata['username'],
-            passwd_digest=pw_digest
-        )
-        retdata = {
-            'user': {
-                'pk'   : user.pk,
-                'name' : user.username
-            }
-        }
-        return HttpResponse(json.dumps(retdata))
+		# perform cyclic redundancy check
+		# crc should be the first 4 chars of plaintext. slice it off...
+		crc, md_ptext = (md_ptext[-4:], md_ptext[:-4])
 
+		if not crc == struct.pack('i', zlib.crc32(md_ptext)):
+			# CRC failed. Metadata is bonked
+			# TODO: recover from this error without giving the attacker a way
+			# to break in.
+			return HttpResponse(status=500)
 
-# Authenticate a user
-def auth_user(request):
-    if request.method != 'POST':
-        return HttpResponse(status=405)
+		# Now we can use the metadata to validate the user
+		md_new = json.loads(metadata)
+		md_extant = json.loads(md_plaintext)
+		md_valid = validate_user_metadata(md_new, md_extant)
 
-    rqdata = json.loads(request.read())
+		if md_valid is not None:
+			# Update metadata and reencrypt it
+			md_aes = AES.new(aes_secret_padding(password), AES.MODE_CFB)
+			metadata.data = md_aes.encrypt(json.dumps({
+				'keystrokes': md_valid['ks'],
+				'variance'  : md_valid['variance']
+			}))
+			# persist this data to the DB
+			metadata.save()
 
-    atmpt_username = rqdata['username']
-    atmpt_password = rqdata['password']
+			# login is seperate from authentication -- it's almost as if the 
+			# creators of Django know what they're doing...
+			login(request, user)
+			return HttpResponse(status=200)
+	# VERBOTEN
+	return HttpResponse(status=403)
 
-    # Get login data
-    try:
-        user = AuthUser.objects.get(username=atmpt_username)
-    except ObjectDoesNotExist:
-        # Couldn't find user
-        return HttpResponse(status=404)
-
-    # Check for existing session
-    try:
-        session = UserSession.objects.get(ticket_holder=user)
-
-        # Check session expiry -- sessions should expire after a couple hours
-        # after the user stops contacting the server
-        now = dt.now()
-        if session.expiry <= now:
-            # Delete this session, and raise exception to
-            # get out of this try clause
-            session.delete()
-            raise ObjectDoesNotExist
-        return HttpResponse(status=403)
-
-    except ObjectDoesNotExist:
-        # Hash the given password and test it against our user's
-        passdg = user.passwd_digest
-        if bcrypt.hashpw(atmpt_password, passdg) != passdg:
-            # This is where we can log the origin of the request, and screen 
-            # it out if it's trying to login too frequently
-            return HttpResponse(status=403)
-
-        # Last line of defense -- check the user's metedata fingerprint
-        incoming_meta = sanitize_passwd_meta(rqdata['metadata'])
-        if incoming_meta is None:
-            # User passed in something nasty
-            return HttpResponse(status=403)
-        
-        # Analyze the fingerprint
-        extant_fingerprints = UserMeta.objects.find(owner=user)
-
-        # Need to gather a sufficient sample size for this data to be meaningful
-        if len(extant_fingerprints) > 10:
-            # Validate the user's metadata
-            validate_meta_fingerprint(incoming_meta, extant_fingerprints)
-
-        new_fingerprint = UserMeta.objects.create(
-            owner=user,
-            values=incoming_meta
-        )
-
-        # Create session
-        token_found = False
-
-        # Note: it's EXTREMELY unlikely that there will be conflicts in token
-        # values, but being paranoid pays dividends
-        try:
-            # try random tokens until we find one that isn't taken
-            # then, break out of the try clause
-            while True:
-                stoken = ''.join(
-                    random.choice(string.ascii_uppercase+string.digits)
-                    for _ in xrange(32)
-                )
-                match = UserSession.objects.get(session_token=stoken)
-        except ObjectDoesNotExist:
-            # Create the session and return the key
-            # Session should expire in six hours
-            session = UserSession.objects.create(
-                ticket_holder=user,
-                session_token=stoken,
-                expiry=dt.now() + timedelta(hours=3)
-            )
-            # There should be more to it than this, but there's nothing the
-            # user's going to be doing here -- so just keep it in mind that
-            # you should be updating the expiration time as the user is 
-            # active. This thing should only expire when the user forgets to 
-            # log out
-            new_fingerprint.save()
-            session.save()
-            return HttpResponse(json.dumps({
-                'stoken': stoken
-            }))
-
-def logout(request):
-    if request.method != 'POST':
-        return HttpResponse(status=405)
-        
-    rqdata = json.loads(request.read())
-
-    # validate the user's session token before we do anything else
-    atmpt_stoken = rqdata['stoken']
-    try:
-        session = UserSession.objects.get(session_token=atmpt_stoken)
-
-        # Kill the session and rotate the csrf key
-        session.delete()
-        rotate_token(request)
-        return HttpResponse(status=204)
-    except ObjectDoesNotExist:
-        # Session failure
-        return HttpResponse(status=403)
+def user_logout(request):
+	logout(request)
+	return HttpResponse(status=200)
